@@ -21,63 +21,18 @@ namespace ConiTradeBot.API
             //client.DefaultRequestHeaders.Add("Connection", "keep-alive");
         }
 
-        public async static Task<string> Post(string url, Dictionary<string,string> body)
-        {
-            var json = CovertToJson(body);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var response = await client.PostAsync(url, content);
-            var responseString = await response.Content.ReadAsStringAsync();
-            return responseString;
-        }
-
-        private static string CovertToJson(Dictionary<string, string> body)
-        {
-            var lines = new List<string>();
-            foreach (var item in body)
-            {
-                lines.Add(string.Format("\"{0}\":\"{1}\"", item.Key, item.Value));
-            }
-            return "{"+ string.Join(",", lines)+ "}";
-        }
-
-        public static Task<string> http_post_sign(string url, Dictionary<string, string> dic)
-        {
-            var mysign = sign(dic);
-            dic.Remove("secret");
-            dic.Add("sign", mysign);
-            return Post(url, dic);
-        }
-
-        public static string sign(Dictionary<string, string> kwargs)
-        {
-            //将传入的参数生成列表形式，排序后用＆拼接成字符串，用hashbli加密成生sign
-            var sign_list = new List<string>();
-            foreach (var k in kwargs)
-            {
-                sign_list.Add(string.Format("{0}={1}", k.Key, k.Value));
-            }
-            sign_list.Sort();
-            var sign_str = string.Join("&", sign_list);
-            var mysecret = Encoding.ASCII.GetBytes(sign_str.ToUpper());
-            var m = MD5.Create().ComputeHash(mysecret);
-            return BitConverter.ToString(m).Replace("-", "").ToLower();
-        }
-
-        public async static Task<string> http_get_nosign(string url)
-        {
-            return await client.GetStringAsync(url);
-        }
-
-        public static Task<string> GetTicker(string symbol)
+        //获取最新价
+        public static Task<string> get_ticker(string symbol)
         {
             var url = market_url + "ticker?symbol=" + symbol;
-            return http_get_nosign(url);
+            return utils.http_get_nosign(url);
         }
 
+        //获取挂单
         public static Task<string> get_orderbook(string symbol, int depth = 200)
         {
             var url = market_url + "orderbook?symbol=" + symbol + "&depth=" + depth;
-            return http_get_nosign(url);
+            return utils.http_get_nosign(url);
         }
 
         //获取成交记录
@@ -87,7 +42,7 @@ namespace ConiTradeBot.API
             size:获取记录数量，按照时间倒序传输。默认300
             */
             var url = market_url + "trades?symbol=" + symbol + "&size=" + size;
-            return http_get_nosign(url);
+            return utils.http_get_nosign(url);
         }
 
         //查询账户余额
@@ -101,7 +56,52 @@ namespace ConiTradeBot.API
             account: 默认为exchange，
             */
             var url = trade_url + "balance";
-            return http_post_sign(url, dic);
+            return utils.http_post_sign(url, dic);
+        }
+
+        //下单
+        public static Task<string> post_order_place(Dictionary<string, string> dic)
+        {
+            /*
+            以字典形式传参
+            apiid, symbol, timestamp
+            type: 可选 buy-limit / sell - limit
+            price: 购买单价
+             quantity:购买数量
+            */
+            var url = trade_url + "order/place";
+            return utils.http_post_sign(url, dic);
+        }
+
+        // 查询委托
+        public static Task<string> post_info(Dictionary<string, string> dic)
+        {
+            /*
+            以字典形式传参
+            apiid, timestamp, secret, orderid
+            */
+            var url = trade_url + "order/info";
+            return utils.http_post_sign(url, dic);
+        }
+
+        //查询当前委托
+        public static Task<string> post_open_orders(Dictionary<string, string> dic) {
+            /*
+            以字典形式传参
+            apiid, timestamp, secret, symbol
+            */
+            var url = trade_url + "order/open-orders";
+            return utils.http_post_sign(url, dic);
+        }
+
+        //撤单
+        public static Task<string> post_cancel(Dictionary<string, string> dic) {
+            /*
+            以字典形式传参
+            apiid, timestamp, secret, orderid
+            */
+            var url = trade_url + "order/cancel";
+            return utils.http_post_sign(url, dic);
         }
 
 
