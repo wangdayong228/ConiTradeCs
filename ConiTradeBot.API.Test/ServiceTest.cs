@@ -3,6 +3,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ConiTradeBot.API;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace ConiTradeBot.API.Test
 {
@@ -90,6 +91,20 @@ namespace ConiTradeBot.API.Test
         private void print(Task<string> task)
         {
             Console.WriteLine(task.Result);
+        }
+
+        [TestMethod]
+        public void TestMathRound()
+        {
+            Math.Round(1.111, 2);
+            Math.Round(1.112, 2);
+            Math.Round(1.113, 2);
+            Math.Round(1.114, 2);
+            Math.Round(1.115, 2);
+            Math.Round(1.116, 2);
+            Math.Round(1.117, 2);
+            Math.Round(1.118, 2);
+            Math.Round(1.119, 2);
         }
     }
 }

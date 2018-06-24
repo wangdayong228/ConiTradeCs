@@ -10,14 +10,34 @@ namespace ConiTradeBot.API
 {
     public class utils
     {
+        private static int requestCount;
         private static readonly HttpClient client = new HttpClient();
+        public static int RequestCount
+        {
+            get { return requestCount; }
+            private set
+            {
+                requestCount = value;
+                if (requestCount % 100 == 0)
+                    Console.WriteLine("Request Count:" + requestCount);
+            }
+        }
+
+        static utils()
+        {
+            //client.DefaultRequestHeaders.Add("user-agent", "Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko");
+            client.Timeout = TimeSpan.FromSeconds(120);
+        }
 
         public async static Task<string> Post(string url, Dictionary<string, string> body)
         {
+            RequestCount++;
+            Console.Write("<p");
             var json = CovertToJson(body);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var response = await client.PostAsync(url, content);
             var responseString = await response.Content.ReadAsStringAsync();
+            Console.Write(">");
             return responseString;
         }
 
@@ -56,12 +76,16 @@ namespace ConiTradeBot.API
 
         public async static Task<string> http_get_nosign(string url)
         {
-            return await client.GetStringAsync(url);
+            RequestCount++;
+            Console.Write("<g");
+            var result= await client.GetStringAsync(url);
+            Console.Write(">");
+            return result;
         }
         public static string GetTimestamp()
         {
             TimeSpan ts = DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, 0);
-            return Convert.ToInt64(ts.TotalSeconds).ToString();
+            return Convert.ToInt64(ts.TotalMilliseconds).ToString();
         }
     }
 }
