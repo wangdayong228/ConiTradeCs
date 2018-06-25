@@ -78,7 +78,7 @@ namespace ConiTradeBot.API
         {
             RequestCount++;
             Console.Write("<g");
-            var result= await client.GetStringAsync(url);
+            var result = await client.GetStringAsync(url);
             Console.Write(">");
             return result;
         }

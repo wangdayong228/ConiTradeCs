@@ -13,12 +13,57 @@ namespace ConiTradeBot.Run
     public class Bot
     {
 
-        const string QUANTITY = "0.01";
+        const string QUANTITY = "0.4";
         const string TRADETYPE = "ethbtc";
         const int PRECISION = 6;
+        bool priceStable = false;
+
+        public Bot()
+        {
+            LoopCheckPriceStable();
+        }
+
+        private void LoopCheckPriceStable()
+        {
+            new Thread(() =>
+            {
+                //连续10次价格变化太大，不做
+                var capcity = 20;
+                Queue<double> bidPrices = new Queue<double>(capcity);
+                Queue<double> askPrices = new Queue<double>(capcity);
+                while (true)
+                {
+                    var ticker = JObject.Parse(Service.get_ticker(TRADETYPE).Result)["ticker"][0];
+
+                    if (bidPrices.Count == capcity)
+                    {
+                        bidPrices.Dequeue();
+                        askPrices.Dequeue();
+                    }
+                    bidPrices.Enqueue(double.Parse(ticker["bid"].ToString()));
+                    askPrices.Enqueue(double.Parse(ticker["ask"].ToString()));
+
+                    if (bidPrices.Count == capcity)
+                    {
+                        var orderdBidPrice = bidPrices.OrderBy(p => p).ToList();
+                        var orderdAslPrice = askPrices.OrderBy(p => p).ToList();
+                        var bidStable = (orderdBidPrice[capcity-1] - orderdBidPrice[0]) / orderdBidPrice[capcity-1] <= 0.002;
+                        var askStable = (orderdAslPrice[capcity-1] - orderdAslPrice[0]) / orderdAslPrice[capcity-1] <= 0.002;
+                        priceStable = bidStable && askStable;
+                    }
+                    Thread.Sleep(2000);
+                }
+            }).Start();
+        }
 
         public void Dig()
         {
+            if (!priceStable)
+            {
+                Console.WriteLine("price not stable, skip");
+                Thread.Sleep(1000);
+                return;
+            }
             //Todo:
             //获取深度，取买单最高价，最后一位加1挂单买N USDT的ETH，如1ETH=500USDT，挂单ETHUSD：buy-limit 500.01USDT，数量1
             //同时挂单等价的卖单： sell-limit 500.01USDT, 数量1
@@ -29,9 +74,10 @@ namespace ConiTradeBot.Run
             CalcMyTradePrice(out buyPrice, out sellPrice);
 
             var buyOrder = ReTryPlaceOrderUntilSucess(TRADETYPE, "buy-limit", buyPrice);// ReTry(() => Service.post_order_place("ethusdt", "buy-limit", myPlanPrice, quantity)).Result;
-            Log(string.Format("place {0} order:{1} {2}", "buy", buyPrice, buyOrder["buyOrder"]));
+            Log(string.Format("place {0} order:{1} {2}", "buy", buyPrice, buyOrder["status"]));
             if (!PlaceOrderSucess(buyOrder))
                 return;
+
             var sellOrder = ReTryPlaceOrderUntilSucess(TRADETYPE, "sell-limit", sellPrice);// ReTry(() => Service.post_order_place("ethusdt", "sell-limit", myPlanPrice, quantity)).Result;
             Log(string.Format("place {0} order:{1} {2}", "sell", sellPrice, sellOrder["status"]));
             if (!PlaceOrderSucess(sellOrder))
@@ -107,14 +153,13 @@ namespace ConiTradeBot.Run
 
             if (isOrderFilled)
             {
-                var averageprice = orderRslt["averagePrice"];
-                var fees = orderRslt["fees"];
-                Log(string.Format("{0} {1} {2}, price:{3},fees:{4}, status:{5}", orderType, QUANTITY, TRADETYPE, averageprice, fees, orderStatus));
+                var price = orderRslt["price"];
+                var quantity = orderRslt["orderquantity"];
+                Log(string.Format("{0} {1} {2}, price:{3}, status:{4}", orderType, quantity, TRADETYPE, price, orderStatus));
                 return true;
             }
             try
             {
-
                 var filledQuantity = orderStatus == "unfilled" ? "0" : orderRslt["filledquantity"].ToString();
                 var unfilledQuantity = double.Parse(orderRslt["orderquantity"].ToString()) - double.Parse(filledQuantity);
                 string buyPrice, sellPrice;
@@ -125,12 +170,24 @@ namespace ConiTradeBot.Run
                 if (nowPrice == planPrice)
                     return false;
                 //cancle and reorder
+               
                 var nowRatio = double.Parse(nowPrice) / double.Parse(planPrice);
                 var hasProfitSpace = orderType == "buy" ? (nowRatio <= limitRatio) : (nowRatio >= limitRatio);
                 var waitTimeLimited = waitTime > 10;
-                //or wait time more than 10 times
+             
+                double lossRatio = 0;
+                if (waitTimeLimited)
+                    lossRatio = orderType == "buy" ? (nowRatio - limitRatio) : (limitRatio - nowRatio );
 
-                if (hasProfitSpace || waitTimeLimited)
+                //if wait more than 10 times and loss more than 0.03%, just return and leave it fill auto
+                if (waitTimeLimited && lossRatio > 0.0009)
+                {
+                    Log("wait" + orderType + " more than 10 times and loss ratio more than 0.0003, return");
+                    return true;
+                }
+                
+                //if have profit space or wait time more than 10 times and not loss than 0.03%
+                if (hasProfitSpace || (waitTimeLimited && lossRatio <= 0.0003))
                 {
                     do
                     {
