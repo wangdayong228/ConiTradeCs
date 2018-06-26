@@ -74,17 +74,19 @@ namespace ConiTradeBot.Run
                 //同时挂单等价的卖单： sell-limit 500.01USDT, 数量1
                 //查询是否成交，如有没有成交的立即调整价格让其成交
                 //等成交后再挂下一单
-                string buyPrice, sellPrice;
+                string planBuyPrice, planSellPrice, reorderBuyPrice, reorderSellPrice;
                 int waitBuyTime = 0, waitSellTime = 0;
-                CalcMyTradePrice(out buyPrice, out sellPrice);
+                CalcMyTradePrice(out planBuyPrice, out planSellPrice);
+                reorderBuyPrice = planBuyPrice;
+                reorderSellPrice = planSellPrice;
 
-                var buyOrder = ReTryPlaceOrderUntilSucess(SYMBOL, "buy-limit", buyPrice);// ReTry(() => Service.post_order_place("ethusdt", "buy-limit", myPlanPrice, quantity)).Result;
-                Log(string.Format("place {0} order:{1} {2}", "buy", buyPrice, buyOrder["status"]));
+                var buyOrder = ReTryPlaceOrderUntilSucess(SYMBOL, "buy-limit", planBuyPrice);// ReTry(() => Service.post_order_place("ethusdt", "buy-limit", myPlanPrice, quantity)).Result;
+                Log(string.Format("place {0} order:{1} {2}", "buy", planBuyPrice, buyOrder["status"]));
                 if (!PlaceOrderSucess(buyOrder))
                     return;
 
-                var sellOrder = ReTryPlaceOrderUntilSucess(SYMBOL, "sell-limit", sellPrice);// ReTry(() => Service.post_order_place("ethusdt", "sell-limit", myPlanPrice, quantity)).Result;
-                Log(string.Format("place {0} order:{1} {2}", "sell", sellPrice, sellOrder["status"]));
+                var sellOrder = ReTryPlaceOrderUntilSucess(SYMBOL, "sell-limit", planSellPrice);// ReTry(() => Service.post_order_place("ethusdt", "sell-limit", myPlanPrice, quantity)).Result;
+                Log(string.Format("place {0} order:{1} {2}", "sell", planSellPrice, sellOrder["status"]));
                 if (!PlaceOrderSucess(sellOrder))
                     throw new Exception("Re placed 10 times sell order failed, please check what happen.");
                 Thread.Sleep(2200);
@@ -95,12 +97,12 @@ namespace ConiTradeBot.Run
                 {
                     if (!isBuyDone)
                     {
-                        isBuyDone = WaitOrderDone(buyPrice, ref buyOrder, "buy", waitBuyTime);
+                        isBuyDone = WaitOrderDone(planBuyPrice, ref reorderBuyPrice, ref buyOrder, "buy", waitBuyTime);
                         waitBuyTime++;
                     }
                     if (!isSellDone)
                     {
-                        isSellDone = WaitOrderDone(sellPrice, ref sellOrder, "sell", waitSellTime);
+                        isSellDone = WaitOrderDone(planSellPrice, ref reorderSellPrice, ref sellOrder, "sell", waitSellTime);
                         waitSellTime++;
                     }
                     if (isBuyDone && isSellDone)
@@ -130,9 +132,10 @@ namespace ConiTradeBot.Run
                 {
                     Log(i + " Retry place order error" + e);
                 }
+
                 if (description == "System Busy.")
                 {
-                    Thread.Sleep(1000);
+                    Thread.Sleep(1100);
                 }
                 else if (description == "Insufficient balance of assets")
                 {
@@ -147,9 +150,10 @@ namespace ConiTradeBot.Run
             return order["status"].ToString() == "ok";
         }
 
-        public bool WaitOrderDone(string planPrice, ref JObject order, string orderType, int waitTime)
+        public bool WaitOrderDone(string planPrice, ref string reorderPrice, ref JObject order, string orderType, int waitTime)
         {
             //Log("wait " + orderType + " done");
+            bool isbuy = orderType == "buy";
             var sellOrderId = order["orderid"].ToString();
             var rspns = JObject.Parse(mainService.post_info(sellOrderId).Result);
             Thread.Sleep(200);
@@ -162,7 +166,7 @@ namespace ConiTradeBot.Run
             var orderRslt = rspns["order"];
             var orderStatus = orderRslt["orderstatus"].ToString();
             var isOrderFilled = orderStatus == "filled";
-            var limitRatio = orderType == "buy" ? 1.0003 : 0.9997;//if ratio is between limitRatio, that menas has profit space.
+            var limitRatio = isbuy ? 1.0003 : 0.9997;//if ratio is between limitRatio, that menas has profit space.
 
             if (isOrderFilled)
             {
@@ -179,24 +183,25 @@ namespace ConiTradeBot.Run
                 string buyPrice, sellPrice;
                 CalcFastTradePrice(out buyPrice, out sellPrice);
                 Thread.Sleep(200);
-                var nowPrice = orderType == "buy" ? buyPrice : sellPrice;
+
+                var nowPrice = isbuy ? buyPrice : sellPrice;
+                var nowRatio = double.Parse(nowPrice) / double.Parse(planPrice);
                 Log("now "+ orderType+ " price:" + nowPrice);
-                if (nowPrice == planPrice)
+                if ((isbuy ? nowRatio <= 1 : nowRatio >= 1) || reorderPrice == nowPrice)
                     return false;
                 //cancle and reorder
-               
-                var nowRatio = double.Parse(nowPrice) / double.Parse(planPrice);
-                var hasProfitSpace = orderType == "buy" ? (nowRatio <= limitRatio) : (nowRatio >= limitRatio);
+
+                var hasProfitSpace = isbuy ? (nowRatio <= limitRatio) : (nowRatio >= limitRatio);
                 var waitTimeLimited = waitTime > 10;
              
                 double lossRatio = 0;
                 if (waitTimeLimited)
-                    lossRatio = orderType == "buy" ? (nowRatio - limitRatio) : (limitRatio - nowRatio );
+                    lossRatio = isbuy ? (nowRatio - limitRatio) : (limitRatio - nowRatio );
 
                 //if wait more than 10 times and loss more than 0.03%, just return and leave it fill auto
                 if (waitTimeLimited && lossRatio > 0.0009)
                 {
-                    Log("wait" + orderType + " more than 10 times and loss ratio more than 0.0003, return");
+                    Log("wait" + orderType + " more than 10 times and loss ratio more than 0.0009, return");
                     return true;
                 }
                 
@@ -206,26 +211,46 @@ namespace ConiTradeBot.Run
                     do
                     {
                         var cancleRspns = JObject.Parse(mainService.post_cancel(sellOrderId).Result);//cancel order
-                        Log(string.Format("cancle {0} order {1} {2}: {3}", orderType, sellOrderId, cancleRspns["status"], cancleRspns["description"]));
-                        if (cancleRspns["status"].ToString() == "error")//response error, retry, may has done
+                        Log(string.Format("cancle {0} order {1} and response {2}, {3}", orderType, sellOrderId, cancleRspns["status"], cancleRspns["description"]));
+
+                        //"Cancellation failed" may cause by part canceld, so continue check, if response other error msg, retry, may has done
+                        if (cancleRspns["status"].ToString() == "error" &&
+                            cancleRspns["description"].ToString() != "Cancellation failed")
                             return false;
 
                         Thread.Sleep(500);
-                        var orders = JObject.Parse(mainService.post_open_orders("ethusdt").Result.ToString());
-                        var content = orders["orders"].ToString();
-                        if (string.IsNullOrEmpty(content))//orders is null means has canceled, and could start to reorder;
-                            break;
 
-                        var items = orders["orders"]["result"].ToArray();
-                        var match = items.FirstOrDefault(i => i["orderid"].ToString() == sellOrderId);
-                        if (match == null)//no matched means has canceled too, could start to reorder;
-                            break;
-                        Thread.Sleep(200);
+                        //check if filled again,if not ,reorder it.
+                        rspns = JObject.Parse(mainService.post_info(sellOrderId).Result);
+                        if (rspns["status"].ToString() == "ok")
+                        {
+                            orderStatus = rspns["order"]["orderstatus"].ToString();
+                            if (orderStatus == "filled")
+                                return false;//if filled, re check and log the msg.
+                            if (orderStatus == "canceled" || orderStatus == "partialCanceled")//if canceled, check orders to ensure, then reorder.
+                            {
+                                var orders = JObject.Parse(mainService.post_open_orders("ethusdt").Result.ToString());
+                                var content = orders["orders"].ToString();
+                                if (string.IsNullOrEmpty(content))//orders is null means has canceled, and could start to reorder;
+                                    break;
+
+                                var items = orders["orders"]["result"].ToArray();
+                                var match = items.FirstOrDefault(i => i["orderid"].ToString() == sellOrderId);
+                                if (match == null)//no matched means has canceled too, could start to reorder;
+                                    break;
+                            }
+                        }
+                        else
+                            return false;
+
+                        Thread.Sleep(400);
                     } while (true);
-
+                    Log(string.Format("cancle {0} order {1} done.", orderType, sellOrderId));
+                    
                     order = ReTryPlaceOrderUntilSucess(SYMBOL, orderType + "-limit", nowPrice, unfilledQuantity.ToString());//reorder for unfilled.
-                    Thread.Sleep(1100);
+                    reorderPrice = nowPrice;
                     Log(string.Format("reoder {0}:{1} {2}", orderType, nowPrice, order["status"]));
+                    Thread.Sleep(1100);
                 }
             }
             catch (Exception e)
@@ -237,7 +262,7 @@ namespace ConiTradeBot.Run
 
         public void CalcFastTradePrice(out string buyPrice, out string sellPrice)
         {
-            var orderbooks = mainService.get_orderbook(SYMBOL, 2).Result;
+            var orderbooks = mainService.get_orderbook(SYMBOL, 1).Result;
             var jObj = JObject.Parse(orderbooks);
             var bidPrice = double.Parse(jObj["orderbook"]["bids"][0]["price"].ToString());
             var bidQuantity = double.Parse(jObj["orderbook"]["bids"][0]["quantity"].ToString());
@@ -250,7 +275,7 @@ namespace ConiTradeBot.Run
 
         private void CalcMyTradePrice(out string buyPrice, out string sellPrice)
         {
-            var orderbooks = mainService.get_orderbook(SYMBOL, 2).Result;
+            var orderbooks = mainService.get_orderbook(SYMBOL, 1).Result;
             var jObj = JObject.Parse(orderbooks);
             var bidPrice = double.Parse(jObj["orderbook"]["bids"][0]["price"].ToString());
             var bidQuantity = double.Parse(jObj["orderbook"]["bids"][0]["quantity"].ToString());
