@@ -16,6 +16,7 @@ namespace ConiTradeBot.Run
         const string appid = "799926456b0add7e4b2bf29091fd17f1";
         const string secret = "4b6152883ed045658499cd1ae5073609";
 
+        Service service = Service.Create();
 
         public void Start()
         {
@@ -32,7 +33,7 @@ namespace ConiTradeBot.Run
         //查询最新价
         public void Test_get_ticker()
         {
-            print(Service.get_ticker("btcusdt"));
+            print(service.get_ticker("btcusdt"));
         }
         //查询结果:{'timestamp': 1529461186102, 'status': 'ok', 'ticker': 
         //[{'symbol': 'BTCUSDT', '24hrHigh': '6832.65', 'ask': '6603.77', '24hrVol': '5329.3321', '24hrLow': '6547.0', 'bid': '6598.89', 'last': '6598.90', '24hrAmt': '35754346.714095'}]}
@@ -42,7 +43,7 @@ namespace ConiTradeBot.Run
         // 查询挂单,需要传入参数symbol,depth默认为200
         public void Test_get_orderbook()
         {
-            print(Service.get_orderbook("btcusdt", 5));
+            print(service.get_orderbook("btcusdt", 5));
         }
         // 查询结果:{'status': 'ok', 
         // 'orderbook': {
@@ -63,7 +64,7 @@ namespace ConiTradeBot.Run
         // 查询成交记录,传参:symbol和size默认为300
         public void Test_get_trade()
         {
-            print(Service.get_trade("ethusdt", 2));
+            print(service.get_trade("ethusdt", 2));
         }
         // 查询结果:{'timestamp': 1529461627036, 
         //         'trades': [{'tradeId': '201806201026349790017791201806201026316910017482', 
@@ -88,7 +89,7 @@ namespace ConiTradeBot.Run
                 { "secret",secret },
                 { "timestamp",utils.GetTimestamp() },
                 { "account","exchange"} };
-            print(Service.post_balance(dic));
+            print(service.post_balance(dic));
         }
         // 查询结果:{
         //         "account":"exchange",
@@ -122,7 +123,7 @@ namespace ConiTradeBot.Run
             { "price","0.003401" },
             { "quantity","10" },
             { "symbol","swtcusdt" } };
-            print(Service.post_order_place(dic));
+            print(service.post_order_place(dic));
         }
         // 查询结果:{'status': 'ok', 'timestamp': 1529462625853, 'orderid': '201806201043458241111111'}
 
@@ -136,7 +137,7 @@ namespace ConiTradeBot.Run
              { "timestamp",utils.GetTimestamp()  },
              { "orderid","201806201043458241111111"}
             };
-            print(Service.post_info(dic));
+            print(service.post_info(dic));
         }
         // 查询结果:{
         //         'order': {'filledquantity': '0', 
@@ -160,7 +161,7 @@ namespace ConiTradeBot.Run
                 { "secret",secret},
                 { "timestamp",utils.GetTimestamp() },
                 { "symbol","swtcusdt"}};
-            print(Service.post_open_orders(dic));
+            print(service.post_open_orders(dic));
         }
         // 查询结果:{
         //     "orders":{
@@ -206,7 +207,7 @@ namespace ConiTradeBot.Run
                 { "secret",secret },
                 { "timestamp",utils.GetTimestamp()  },
                 { "orderid","201806222116212090013231" } };
-            print(Service.post_cancel(dic));
+            print(service.post_cancel(dic));
         }
         // 查询结果:{'orderid': '201806201043458241111111', 
         //           'timestamp': 1529463751589, 

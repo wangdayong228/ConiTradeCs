@@ -11,7 +11,7 @@ namespace ConiTradeBot.API
     public class utils
     {
         private static int requestCount;
-        private static readonly HttpClient client = new HttpClient();
+
         public static int RequestCount
         {
             get { return requestCount; }
@@ -23,13 +23,15 @@ namespace ConiTradeBot.API
             }
         }
 
-        static utils()
+        private readonly HttpClient client = new HttpClient();
+
+        public utils()
         {
             //client.DefaultRequestHeaders.Add("user-agent", "Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko");
             client.Timeout = TimeSpan.FromSeconds(120);
         }
-
-        public async static Task<string> Post(string url, Dictionary<string, string> body)
+        
+        public async Task<string> Post(string url, Dictionary<string, string> body)
         {
             RequestCount++;
             Console.Write("<p");
@@ -41,7 +43,7 @@ namespace ConiTradeBot.API
             return responseString;
         }
 
-        private static string CovertToJson(Dictionary<string, string> body)
+        private string CovertToJson(Dictionary<string, string> body)
         {
             var lines = new List<string>();
             foreach (var item in body)
@@ -51,7 +53,7 @@ namespace ConiTradeBot.API
             return "{" + string.Join(",", lines) + "}";
         }
 
-        public static Task<string> http_post_sign(string url, Dictionary<string, string> dic)
+        public Task<string> http_post_sign(string url, Dictionary<string, string> dic)
         {
             var mysign = sign(dic);
             dic.Remove("secret");
@@ -59,7 +61,7 @@ namespace ConiTradeBot.API
             return Post(url, dic);
         }
 
-        public static string sign(Dictionary<string, string> kwargs)
+        public string sign(Dictionary<string, string> kwargs)
         {
             //将传入的参数生成列表形式，排序后用＆拼接成字符串，用hashbli加密成生sign
             var sign_list = new List<string>();
@@ -74,7 +76,7 @@ namespace ConiTradeBot.API
             return BitConverter.ToString(m).Replace("-", "").ToLower();
         }
 
-        public async static Task<string> http_get_nosign(string url)
+        public async Task<string> http_get_nosign(string url)
         {
             RequestCount++;
             Console.Write("<g");
@@ -82,6 +84,7 @@ namespace ConiTradeBot.API
             Console.Write(">");
             return result;
         }
+
         public static string GetTimestamp()
         {
             TimeSpan ts = DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, 0);

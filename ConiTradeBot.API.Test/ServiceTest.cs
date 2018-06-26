@@ -10,23 +10,24 @@ namespace ConiTradeBot.API.Test
     [TestClass]
     public class UnitTest1
     {
+        Service service = Service.Create();
         //# 查询最新价
         [TestMethod]
         public void Test_get_ticker()
         {
-            print(Service.get_ticker("btcusdt"));
+            print(service.get_ticker("btcusdt"));
         }
 
         [TestMethod]
         public void Test_get_orderbook()
         {
-            print(Service.get_orderbook("btcusdt", 5));
+            print(service.get_orderbook("btcusdt", 5));
         }
 
         [TestMethod]
         public void Test_get_trade()
         {
-            print(Service.get_trade("ethusdt", 2));
+            print(service.get_trade("ethusdt", 2));
         }
 
         [TestMethod]
@@ -37,7 +38,7 @@ namespace ConiTradeBot.API.Test
                 { "secret","xxx" },
                 { "timestamp","11223112231" },
                 { "account","exchange"} };
-            print(Service.post_balance(dic));
+            print(service.post_balance(dic));
         }
 
         [TestMethod]
@@ -51,7 +52,7 @@ namespace ConiTradeBot.API.Test
             { "price","0.003401" },
             { "quantity","1" },
             { "symbol","swtcusdt" } };
-            print(Service.post_order_place(dic));
+            print(service.post_order_place(dic));
         }
 
         [TestMethod]
@@ -63,7 +64,7 @@ namespace ConiTradeBot.API.Test
              { "timestamp","1122311211231" },
              { "orderid","201806201043458241111111"}
             };
-            print(Service.post_info(dic));
+            print(service.post_info(dic));
         }
 
         [TestMethod]
@@ -74,7 +75,7 @@ namespace ConiTradeBot.API.Test
                 { "secret","xxx"},
                 { "timestamp","1122311211231"},
                 { "symbol","swtcusdt"}};
-            print(Service.post_open_orders(dic));
+            print(service.post_open_orders(dic));
         }
 
         [TestMethod]
@@ -85,7 +86,7 @@ namespace ConiTradeBot.API.Test
                 { "secret","xxx" },
                 { "timestamp","112231121111231" },
                 { "orderid","201806201043458241111111" } };
-            print(Service.post_cancel(dic));
+            print(service.post_cancel(dic));
         }
 
         private void print(Task<string> task)

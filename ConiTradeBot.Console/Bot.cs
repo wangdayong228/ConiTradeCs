@@ -14,9 +14,11 @@ namespace ConiTradeBot.Run
     {
 
         const string QUANTITY = "0.4";
-        const string TRADETYPE = "ethbtc";
+        const string SYMBOL = "ethbtc";
         const int PRECISION = 6;
         bool priceStable = false;
+
+        Service mainService = Service.Create();
 
         public Bot()
         {
@@ -27,13 +29,14 @@ namespace ConiTradeBot.Run
         {
             new Thread(() =>
             {
+                var tempService = Service.Create();
                 //连续10次价格变化太大，不做
-                var capcity = 20;
+                var capcity = 10;
                 Queue<double> bidPrices = new Queue<double>(capcity);
                 Queue<double> askPrices = new Queue<double>(capcity);
                 while (true)
                 {
-                    var ticker = JObject.Parse(Service.get_ticker(TRADETYPE).Result)["ticker"][0];
+                    var ticker = JObject.Parse(tempService.get_ticker(SYMBOL).Result)["ticker"][0];
 
                     if (bidPrices.Count == capcity)
                     {
@@ -58,75 +61,85 @@ namespace ConiTradeBot.Run
 
         public void Dig()
         {
-            if (!priceStable)
+            try
             {
-                Console.WriteLine("price not stable, skip");
-                Thread.Sleep(1000);
-                return;
+                if (!priceStable)
+                {
+                    Console.WriteLine("price not stable, skip");
+                    Thread.Sleep(1000);
+                    return;
+                }
+                //Todo:
+                //获取深度，取买单最高价，最后一位加1挂单买N USDT的ETH，如1ETH=500USDT，挂单ETHUSD：buy-limit 500.01USDT，数量1
+                //同时挂单等价的卖单： sell-limit 500.01USDT, 数量1
+                //查询是否成交，如有没有成交的立即调整价格让其成交
+                //等成交后再挂下一单
+                string buyPrice, sellPrice;
+                int waitBuyTime = 0, waitSellTime = 0;
+                CalcMyTradePrice(out buyPrice, out sellPrice);
+
+                var buyOrder = ReTryPlaceOrderUntilSucess(SYMBOL, "buy-limit", buyPrice);// ReTry(() => Service.post_order_place("ethusdt", "buy-limit", myPlanPrice, quantity)).Result;
+                Log(string.Format("place {0} order:{1} {2}", "buy", buyPrice, buyOrder["status"]));
+                if (!PlaceOrderSucess(buyOrder))
+                    return;
+
+                var sellOrder = ReTryPlaceOrderUntilSucess(SYMBOL, "sell-limit", sellPrice);// ReTry(() => Service.post_order_place("ethusdt", "sell-limit", myPlanPrice, quantity)).Result;
+                Log(string.Format("place {0} order:{1} {2}", "sell", sellPrice, sellOrder["status"]));
+                if (!PlaceOrderSucess(sellOrder))
+                    throw new Exception("Re placed 10 times sell order failed, please check what happen.");
+                Thread.Sleep(2200);
+
+                bool isBuyDone = false;
+                bool isSellDone = false;
+                while (true)
+                {
+                    if (!isBuyDone)
+                    {
+                        isBuyDone = WaitOrderDone(buyPrice, ref buyOrder, "buy", waitBuyTime);
+                        waitBuyTime++;
+                    }
+                    if (!isSellDone)
+                    {
+                        isSellDone = WaitOrderDone(sellPrice, ref sellOrder, "sell", waitSellTime);
+                        waitSellTime++;
+                    }
+                    if (isBuyDone && isSellDone)
+                        break;
+                }
             }
-            //Todo:
-            //获取深度，取买单最高价，最后一位加1挂单买N USDT的ETH，如1ETH=500USDT，挂单ETHUSD：buy-limit 500.01USDT，数量1
-            //同时挂单等价的卖单： sell-limit 500.01USDT, 数量1
-            //查询是否成交，如有没有成交的立即调整价格让其成交
-            //等成交后再挂下一单
-            string buyPrice, sellPrice;
-            int waitBuyTime = 0, waitSellTime = 0;
-            CalcMyTradePrice(out buyPrice, out sellPrice);
-
-            var buyOrder = ReTryPlaceOrderUntilSucess(TRADETYPE, "buy-limit", buyPrice);// ReTry(() => Service.post_order_place("ethusdt", "buy-limit", myPlanPrice, quantity)).Result;
-            Log(string.Format("place {0} order:{1} {2}", "buy", buyPrice, buyOrder["status"]));
-            if (!PlaceOrderSucess(buyOrder))
-                return;
-
-            var sellOrder = ReTryPlaceOrderUntilSucess(TRADETYPE, "sell-limit", sellPrice);// ReTry(() => Service.post_order_place("ethusdt", "sell-limit", myPlanPrice, quantity)).Result;
-            Log(string.Format("place {0} order:{1} {2}", "sell", sellPrice, sellOrder["status"]));
-            if (!PlaceOrderSucess(sellOrder))
-                throw new Exception("Re placed 10 times sell order failed, please check what happen.");
-            Thread.Sleep(2200);
-
-            bool isBuyDone = false;
-            bool isSellDone = false;
-            while (true)
+            catch (Exception e)
             {
-                if (!isBuyDone)
-                {
-                    isBuyDone = WaitOrderDone(buyPrice, ref buyOrder, "buy", waitBuyTime);
-                    waitBuyTime++;
-                }
-                if (!isSellDone)
-                {
-                    isSellDone = WaitOrderDone(sellPrice, ref sellOrder, "sell", waitSellTime);
-                    waitSellTime++;
-                }
-                if (isBuyDone && isSellDone)
-                    break;
+                Log(e.Message + "\r\n" + e.StackTrace);
+                Thread.Sleep(10000);
             }
         }
 
         public JObject ReTryPlaceOrderUntilSucess(string symbol, string type, string price, string quantity = QUANTITY)
         {
+            string description = "";
             for (int i = 0; i < 10; i++)
             {
                 try
                 {
-                    var rspns = JObject.Parse(Service.post_order_place(symbol, type, price, quantity).Result);
+                    var rspns = JObject.Parse(mainService.post_order_place(symbol, type, price, quantity).Result);
                     if (rspns["status"].ToString() == "ok")
                         return rspns;
-
-                    var descrip = rspns["description"].ToString();
-                    if (descrip == "System Busy.")
-                    {
-                        Thread.Sleep(1000);
-                    }
-                    else
-                        throw new Exception(descrip);
+                    description = rspns["description"].ToString();
                 }
                 catch (Exception e)
                 {
                     Log(i + " Retry place order error" + e);
                 }
+                if (description == "System Busy.")
+                {
+                    Thread.Sleep(1000);
+                }
+                else if (description == "Insufficient balance of assets")
+                {
+                    throw new Exception(description);
+                }
             }
-            throw new Exception("System Busy.");
+            throw new Exception(description);
         }
 
         public bool PlaceOrderSucess(JObject order)
@@ -138,8 +151,8 @@ namespace ConiTradeBot.Run
         {
             //Log("wait " + orderType + " done");
             var sellOrderId = order["orderid"].ToString();
-            var rspns = JObject.Parse(Service.post_info(sellOrderId).Result);
-            Thread.Sleep(100);
+            var rspns = JObject.Parse(mainService.post_info(sellOrderId).Result);
+            Thread.Sleep(200);
             if (rspns["status"].ToString() == "error")
             {
                 Console.WriteLine(orderType+ "order error: " + rspns["description"]);
@@ -153,9 +166,10 @@ namespace ConiTradeBot.Run
 
             if (isOrderFilled)
             {
-                var price = orderRslt["price"];
-                var quantity = orderRslt["orderquantity"];
-                Log(string.Format("{0} {1} {2}, price:{3}, status:{4}", orderType, quantity, TRADETYPE, price, orderStatus));
+                var price = orderRslt["price"].ToString();
+                var quantity = orderRslt["orderquantity"].ToString();
+                Log(string.Format("{0} {1} {2}, price:{3}, status:{4}", orderType, quantity, SYMBOL, price, orderStatus));
+                Logger.LogTradeResult(orderType, quantity, SYMBOL, price, orderStatus);
                 return true;
             }
             try
@@ -164,9 +178,9 @@ namespace ConiTradeBot.Run
                 var unfilledQuantity = double.Parse(orderRslt["orderquantity"].ToString()) - double.Parse(filledQuantity);
                 string buyPrice, sellPrice;
                 CalcFastTradePrice(out buyPrice, out sellPrice);
-                Thread.Sleep(100);
+                Thread.Sleep(200);
                 var nowPrice = orderType == "buy" ? buyPrice : sellPrice;
-                Log("now trade price:" + nowPrice);
+                Log("now "+ orderType+ " price:" + nowPrice);
                 if (nowPrice == planPrice)
                     return false;
                 //cancle and reorder
@@ -191,13 +205,13 @@ namespace ConiTradeBot.Run
                 {
                     do
                     {
-                        var cancleRspns = JObject.Parse(Service.post_cancel(sellOrderId).Result);//cancel order
+                        var cancleRspns = JObject.Parse(mainService.post_cancel(sellOrderId).Result);//cancel order
                         Log(string.Format("cancle {0} order {1} {2}: {3}", orderType, sellOrderId, cancleRspns["status"], cancleRspns["description"]));
                         if (cancleRspns["status"].ToString() == "error")//response error, retry, may has done
                             return false;
 
                         Thread.Sleep(500);
-                        var orders = JObject.Parse(Service.post_open_orders("ethusdt").Result.ToString());
+                        var orders = JObject.Parse(mainService.post_open_orders("ethusdt").Result.ToString());
                         var content = orders["orders"].ToString();
                         if (string.IsNullOrEmpty(content))//orders is null means has canceled, and could start to reorder;
                             break;
@@ -206,11 +220,11 @@ namespace ConiTradeBot.Run
                         var match = items.FirstOrDefault(i => i["orderid"].ToString() == sellOrderId);
                         if (match == null)//no matched means has canceled too, could start to reorder;
                             break;
-                        Thread.Sleep(100);
+                        Thread.Sleep(200);
                     } while (true);
 
-                    order = ReTryPlaceOrderUntilSucess(TRADETYPE, orderType + "-limit", nowPrice, unfilledQuantity.ToString());//reorder for unfilled.
-                    Thread.Sleep(1000);
+                    order = ReTryPlaceOrderUntilSucess(SYMBOL, orderType + "-limit", nowPrice, unfilledQuantity.ToString());//reorder for unfilled.
+                    Thread.Sleep(1100);
                     Log(string.Format("reoder {0}:{1} {2}", orderType, nowPrice, order["status"]));
                 }
             }
@@ -223,7 +237,7 @@ namespace ConiTradeBot.Run
 
         public void CalcFastTradePrice(out string buyPrice, out string sellPrice)
         {
-            var orderbooks = Service.get_orderbook(TRADETYPE, 2).Result;
+            var orderbooks = mainService.get_orderbook(SYMBOL, 2).Result;
             var jObj = JObject.Parse(orderbooks);
             var bidPrice = double.Parse(jObj["orderbook"]["bids"][0]["price"].ToString());
             var bidQuantity = double.Parse(jObj["orderbook"]["bids"][0]["quantity"].ToString());
@@ -236,7 +250,7 @@ namespace ConiTradeBot.Run
 
         private void CalcMyTradePrice(out string buyPrice, out string sellPrice)
         {
-            var orderbooks = Service.get_orderbook(TRADETYPE, 2).Result;
+            var orderbooks = mainService.get_orderbook(SYMBOL, 2).Result;
             var jObj = JObject.Parse(orderbooks);
             var bidPrice = double.Parse(jObj["orderbook"]["bids"][0]["price"].ToString());
             var bidQuantity = double.Parse(jObj["orderbook"]["bids"][0]["quantity"].ToString());
@@ -276,13 +290,14 @@ namespace ConiTradeBot.Run
                     if (failCnt == 5)
                         throw e;
                 }
-                Thread.Sleep(100);
+                Thread.Sleep(200);
             }
         }
 
         private void Log(string msg)
         {
             Console.WriteLine("{0:hh-mm-ss:fff}:{1}", DateTime.Now, msg);
+            Logger.LogInfo(msg);
         }
     }
 }

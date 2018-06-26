@@ -10,45 +10,44 @@ namespace ConiTradeBot.API
 {
     public class Service
     {
-        private static readonly HttpClient client = new HttpClient();
-        private static string market_url = "http://api.coinbene.com/v1/market/";
-        private static string trade_url = "http://api.coinbene.com/v1/trade/";
+        //private readonly HttpClient client = new HttpClient();
+        const string market_url = "http://api.coinbene.com/v1/market/";
+        const string trade_url = "http://api.coinbene.com/v1/trade/";
 
         //no ip
         const string appid = "799926456b0add7e4b2bf29091fd17f1";
         const string secret = "4b6152883ed045658499cd1ae5073609";
 
-        //111.194.46.100
-        //const string appid = "b9795ff6245f36b47f8e69fc2c0b04e1";
-        //const string secret = "317fba58e5914d38a946149220221030";
+        utils utils = new utils();
 
-        //1.234.31.68
-        //const string appid = "45800d071257e47e3193b58b426ee71b";
-        //const string secret = "f6466a19c7664a9ca81aa59010ff09c0";
-
-        static Service()
+        private Service()
         {
             //client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko");
             //client.DefaultRequestHeaders.Add("Content-Type", "application/json;charset=utf-8");
             //client.DefaultRequestHeaders.Add("Connection", "keep-alive");
         }
 
+        public static Service Create()
+        {
+            return new Service();
+        }
+
         //获取最新价
-        public static Task<string> get_ticker(string symbol)
+        public Task<string> get_ticker(string symbol)
         {
             var url = market_url + "ticker?symbol=" + symbol;
             return utils.http_get_nosign(url);
         }
 
         //获取挂单
-        public static Task<string> get_orderbook(string symbol, int depth = 200)
+        public Task<string> get_orderbook(string symbol, int depth = 200)
         {
             var url = market_url + "orderbook?symbol=" + symbol + "&depth=" + depth;
             return utils.http_get_nosign(url);
         }
 
         //获取成交记录
-        public static Task<string> get_trade(string symbol, int size = 300)
+        public Task<string> get_trade(string symbol, int size = 300)
         {
             /*
             size:获取记录数量，按照时间倒序传输。默认300
@@ -60,7 +59,7 @@ namespace ConiTradeBot.API
 
 
         //查询账户余额
-        public static Task<string> post_balance(Dictionary<string, string> dic)
+        public Task<string> post_balance(Dictionary<string, string> dic)
         {
             /*
             以字典形式传参
@@ -74,7 +73,7 @@ namespace ConiTradeBot.API
         }
 
         //查询账户余额
-        public static Task<string> post_balance()
+        public Task<string> post_balance()
         {
             /*
             以字典形式传参
@@ -93,7 +92,7 @@ namespace ConiTradeBot.API
         }
 
         //下单
-        public static Task<string> post_order_place(Dictionary<string, string> dic)
+        public Task<string> post_order_place(Dictionary<string, string> dic)
         {
             /*
             以字典形式传参
@@ -114,7 +113,7 @@ namespace ConiTradeBot.API
         /// <param name="quantity"></param>
         /// <param name="symbol">such as "btcusdt"</param>
         /// <returns></returns>
-        public static Task<string> post_order_place(string symbol, string type,string price,string quantity)
+        public Task<string> post_order_place(string symbol, string type,string price,string quantity)
         {
             /*
             以字典形式传参
@@ -136,7 +135,7 @@ namespace ConiTradeBot.API
         }
 
         // 查询委托
-        public static Task<string> post_info(Dictionary<string, string> dic)
+        public Task<string> post_info(Dictionary<string, string> dic)
         {
             /*
             以字典形式传参
@@ -152,7 +151,7 @@ namespace ConiTradeBot.API
         /// </summary>
         /// <param name="orderid">201806201043458241111111</param>
         /// <returns></returns>
-        public static Task<string> post_info(string orderid)
+        public Task<string> post_info(string orderid)
         {
             /*
             以字典形式传参
@@ -169,7 +168,7 @@ namespace ConiTradeBot.API
         }
 
         //查询当前委托
-        public static Task<string> post_open_orders(Dictionary<string, string> dic) {
+        public Task<string> post_open_orders(Dictionary<string, string> dic) {
             /*
             以字典形式传参
             apiid, timestamp, secret, symbol
@@ -179,7 +178,7 @@ namespace ConiTradeBot.API
         }
 
         //查询当前委托
-        public static Task<string> post_open_orders(string symbol)
+        public Task<string> post_open_orders(string symbol)
         {
             /*
             以字典形式传参
@@ -195,7 +194,7 @@ namespace ConiTradeBot.API
         }
 
         //撤单
-        public static Task<string> post_cancel(Dictionary<string, string> dic) {
+        public Task<string> post_cancel(Dictionary<string, string> dic) {
             /*
             以字典形式传参
             apiid, timestamp, secret, orderid
@@ -205,7 +204,7 @@ namespace ConiTradeBot.API
         }
 
         //撤单
-        public static Task<string> post_cancel(string orderid)
+        public Task<string> post_cancel(string orderid)
         {
             /*
             以字典形式传参

@@ -14,6 +14,7 @@ namespace ConiTradeBot.Run
         {
             //new ServiceTest().Start();
             //new CommonTest().TestMathRound();
+            //new HttpclientTest().Test();
 
             int count = 0;
             var bot = new Bot();
