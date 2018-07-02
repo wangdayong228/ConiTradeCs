@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace ConiTradeBot.API
 {
-    public class utils
+    public class HttpUtils
     {
         private static int requestCount;
 
@@ -25,7 +25,7 @@ namespace ConiTradeBot.API
 
         private readonly HttpClient client = new HttpClient();
 
-        public utils()
+        public HttpUtils()
         {
             //client.DefaultRequestHeaders.Add("user-agent", "Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko");
             client.Timeout = TimeSpan.FromSeconds(120);
@@ -55,13 +55,13 @@ namespace ConiTradeBot.API
 
         public Task<string> http_post_sign(string url, Dictionary<string, string> dic)
         {
-            var mysign = sign(dic);
+            var mysign = signMd5(dic);
             dic.Remove("secret");
             dic.Add("sign", mysign);
             return Post(url, dic);
         }
 
-        public string sign(Dictionary<string, string> kwargs)
+        public string signMd5(Dictionary<string, string> kwargs)
         {
             //将传入的参数生成列表形式，排序后用＆拼接成字符串，用hashbli加密成生sign
             var sign_list = new List<string>();
@@ -76,6 +76,13 @@ namespace ConiTradeBot.API
             return BitConverter.ToString(m).Replace("-", "").ToLower();
         }
 
+        public string SHA256(string input)
+        {
+            var mysecret = Encoding.ASCII.GetBytes(input.ToUpper());
+            var m = SHA256Managed.Create().ComputeHash(mysecret);
+            return BitConverter.ToString(m).Replace("-", "").ToLower();
+        }
+
         public async Task<string> http_get_nosign(string url)
         {
             RequestCount++;
@@ -83,6 +90,17 @@ namespace ConiTradeBot.API
             var result = await client.GetStringAsync(url);
             Console.Write(">");
             return result;
+        }
+
+        public static string GenUrl(string urlRoot, Dictionary<string, string> param)
+        {
+            var lines = new List<string>();
+            foreach (var item in param)
+            {
+                lines.Add(string.Format("{0}={1}", item.Key, item.Value));
+            }
+            var rawUrl = urlRoot + "&" + string.Join(",", lines);
+            return System.Web.HttpUtility.UrlEncode(rawUrl);
         }
 
         public static string GetTimestamp()

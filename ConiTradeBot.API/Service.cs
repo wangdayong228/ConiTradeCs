@@ -18,7 +18,7 @@ namespace ConiTradeBot.API
         const string appid = "799926456b0add7e4b2bf29091fd17f1";
         const string secret = "4b6152883ed045658499cd1ae5073609";
 
-        utils utils = new utils();
+        HttpUtils utils = new HttpUtils();
 
         private Service()
         {
@@ -86,7 +86,7 @@ namespace ConiTradeBot.API
             var dic = new Dictionary<string, string> {
                 { "apiid",appid },
                 { "secret",secret },
-                { "timestamp",utils.GetTimestamp() },
+                { "timestamp",HttpUtils.GetTimestamp() },
                 { "account","exchange"} };
             return utils.http_post_sign(url, dic);
         }
@@ -126,7 +126,7 @@ namespace ConiTradeBot.API
             var dic = new Dictionary<string, string> {
             { "apiid",appid },
             { "secret",secret },
-            { "timestamp",utils.GetTimestamp() },
+            { "timestamp",HttpUtils.GetTimestamp() },
             { "type",type },
             { "price",price },
             { "quantity",quantity },
@@ -161,7 +161,7 @@ namespace ConiTradeBot.API
             var dic = new Dictionary<string, string> {
              { "apiid",appid },
              { "secret",secret },
-             { "timestamp",utils.GetTimestamp()},
+             { "timestamp",HttpUtils.GetTimestamp()},
              { "orderid",orderid}
             };
             return utils.http_post_sign(url, dic);
@@ -188,7 +188,7 @@ namespace ConiTradeBot.API
             var dic = new Dictionary<string, string> {
                 { "apiid",appid},
                 { "secret",secret},
-                { "timestamp",utils.GetTimestamp() },
+                { "timestamp",HttpUtils.GetTimestamp() },
                 { "symbol",symbol}};
             return utils.http_post_sign(url, dic);
         }
@@ -214,7 +214,7 @@ namespace ConiTradeBot.API
             var dic = new Dictionary<string, string>{
                 { "apiid",appid },
                 { "secret",secret },
-                { "timestamp",utils.GetTimestamp()  },
+                { "timestamp",HttpUtils.GetTimestamp()  },
                 { "orderid",orderid } };
             return utils.http_post_sign(url, dic);
         }
